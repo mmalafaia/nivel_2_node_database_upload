@@ -10,7 +10,7 @@ interface Request {
   title: string;
   value: number;
   type: 'income' | 'outcome';
-  categoryTitle: string;
+  category: string;
 }
 
 class CreateTransactionService {
@@ -18,9 +18,10 @@ class CreateTransactionService {
     title,
     value,
     type,
-    categoryTitle,
+    category,
   }: Request): Promise<Transaction> {
     const transactionsRepository = getCustomRepository(TransactionsRepository);
+    const categoryRepository = getRepository(Category);
 
     if (!['income', 'outcome'].includes(type)) {
       throw new AppError('Transaction type is invalid');
@@ -32,22 +33,24 @@ class CreateTransactionService {
       throw new AppError('You do not have enough balance');
     }
 
-    const categoryRepository = getRepository(Category);
+    let transactionCategory = await categoryRepository.findOne({
+      title: category,
+    });
 
-    let category = await categoryRepository.findOne({ title: categoryTitle });
+    if (!transactionCategory) {
+      transactionCategory = await categoryRepository.create({
+        title: category,
+      });
 
-    if (!category) {
-      category = new Category();
-      category.title = categoryTitle;
-      category = await categoryRepository.save(category);
+      await categoryRepository.save(transactionCategory);
     }
 
-    const transaction = new Transaction();
-
-    transaction.title = title;
-    transaction.value = value;
-    transaction.type = type;
-    transaction.category = category;
+    const transaction = transactionsRepository.create({
+      title,
+      value,
+      type,
+      category: transactionCategory,
+    });
 
     return transactionsRepository.save(transaction);
   }
